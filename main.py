@@ -22,7 +22,7 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 # --- CONFIGURACIÓN DE IA ---
 # Define el modelo de Hugging Face a usar.
 # Usamos un modelo válido para evitar errores 404/StopIteration.
-MODELO_IA = "tiiuae/falcon-7b-instruct" 
+MODELO_IA = "gpt2" 
 
 
 # =========================================================
@@ -143,3 +143,4 @@ else:
         bot.run(TOKEN) 
     except discord.errors.HTTPException as e:
         print(f"Error al conectar: {e}")
+
