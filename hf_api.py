@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
-# Importamos HTTPError directamente desde el cliente para corregir el error de sintaxis
-from huggingface_hub import InferenceClient, InferenceTimeoutError, HTTPError 
+# Importamos HTTPError desde el módulo HfApi para corregir el ImportError
+from huggingface_hub import InferenceClient, InferenceTimeoutError, HfApi 
 
 # Carga las variables de entorno
 load_dotenv()
@@ -15,7 +15,6 @@ try:
         client = InferenceClient(timeout=30) 
     else:
         # Cliente con token, con timeout de 30 segundos
-        # SOLUCIÓN DEL ERROR 1: Pasar el timeout al cliente, no a text_generation
         client = InferenceClient(token=HF_TOKEN, timeout=30)
 except Exception as e:
     print(f"Error al inicializar el cliente de HF: {e}")
@@ -35,7 +34,6 @@ def query_hf(prompt, model_id):
     # Intentamos la generación de texto
     try:
         # Llama al método de generación de texto del cliente
-        # SOLUCIÓN DEL ERROR 1: Eliminado el argumento 'timeout' del método
         response = client.text_generation(
             model=model_id,
             prompt=prompt,
@@ -50,8 +48,8 @@ def query_hf(prompt, model_id):
     except InferenceTimeoutError:
         return "El modelo se está cargando o está demasiado ocupado. Inténtalo de nuevo en un minuto. ⏳"
     
-    # SOLUCIÓN DEL ERROR 2: Cambiado HfApi.HTTPError por HTTPError (importado arriba)
-    except HTTPError as e: 
+    # SOLUCIÓN DEL ERROR: Usar HfApi.HTTPError (ya lo importamos arriba)
+    except HfApi.HTTPError as e: 
         # Captura errores HTTP (404, 401, 403, 503)
         if "404" in str(e):
             return f"Error: Modelo '{model_id}' no encontrado en Hugging Face. Revisa el ID."
