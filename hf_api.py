@@ -2,8 +2,10 @@ import os
 import requests
 from dotenv import load_dotenv
 
-# Carga las variables de entorno si se ejecuta localmente
 load_dotenv() 
+
+# URL del endpoint de inferencia de Hugging Face (URL simple, sin f-string para diagnostico)
+HF_INFERENCE_URL = "https://api-inference.huggingface.co/models/"
 
 # =========================================================
 # FUNCIÓN DE CONSULTA A LA API DE HUGGING FACE
@@ -17,8 +19,14 @@ def query_hf(prompt, model_id):
     if not HF_TOKEN:
         return "Error: Token de Hugging Face no encontrado."
     
-    API_URL = f"https://api-inference.huggingface.co/models/{model_id}"
-    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+    # Construcción de la URL final con el modelo
+    API_URL = HF_INFERENCE_URL + model_id
+    
+    # Headers de la solicitud
+    headers = {
+        "Authorization": f"Bearer {HF_TOKEN}",
+        "Content-Type": "application/json" # Asegura el tipo de contenido
+    }
 
     payload = {
         "inputs": prompt,
@@ -31,12 +39,13 @@ def query_hf(prompt, model_id):
 
     try:
         response = requests.post(API_URL, headers=headers, json=payload)
-        response.raise_for_status() # Lanza un error si el código es 4xx o 5xx
-        
-        # --- Lógica de Manejo de Respuesta (Normal) ---
+        response.raise_for_status() # Lanza un error para códigos 4xx/5xx
+
+        # Intento de parsear JSON para respuestas exitosas o de "cargando"
         data = response.json()
         
         if isinstance(data, list) and data and 'generated_text' in data[0]:
+            # Éxito: limpia y devuelve el texto generado
             return data[0]['generated_text'].replace(prompt, '').strip()
         
         elif 'error' in data:
@@ -47,16 +56,13 @@ def query_hf(prompt, model_id):
         return "Respuesta desconocida del modelo."
 
     except requests.exceptions.RequestException as e:
-        # --- DIAGNÓSTICO CLAVE ---
-        # Si la solicitud falla, intentamos leer la respuesta como texto
+        # DIAGNÓSTICO FINAL: Mostrar el error HTTP real
         try:
-            error_text = response.text 
-            print(f"ERROR DE HF DETECTADO (RAW TEXT): {error_text}")
-            
-            # Devuelve un mensaje genérico de error al usuario
-            return f"❌ Error de autenticación o servidor de HF. Por favor, revisa el log de Render."
+            # Si el error es HTTP (ej. 401 Unauthorized, 403 Forbidden)
+            error_code = response.status_code
+            return f"❌ Error de Servidor HF (Código {error_code}). Token no aceptado."
         except:
-             return f"Error de conexión HTTP: {e}"
-
+             return f"Error de conexión: {e}"
+    
     except Exception as e:
         return f"Error interno del bot: {e}"
