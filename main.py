@@ -2,9 +2,10 @@ import discord
 import os
 import random
 from discord.ext import commands 
+from discord import app_commands # Importación necesaria para bot.tree
 from dotenv import load_dotenv
 from hf_api import query_hf # Importación de la función de IA
-from keep_alive import keep_alive 
+from keep_alive import keep_alive # Módulo para mantener el bot vivo
 
 # Carga las variables del archivo .env
 load_dotenv()
@@ -15,17 +16,37 @@ intents.message_content = True
 intents.messages = True
 
 # --- Inicialización del Bot ---
+# Ahora usamos 'app_commands.CommandTree' para manejar comandos de barra
 bot = commands.Bot(command_prefix='!', intents=intents) 
 
 # --- CONFIGURACIÓN DE IA ---
 # Define el modelo de Hugging Face a usar.
-# Cambiado a un modelo más estable para la inferencia gratuita.
-MODELO_IA = "gpt2" 
-# ... el resto de tu código ...
+# Usamos un modelo válido para evitar errores 404/StopIteration.
+MODELO_IA = "tiiuae/falcon-7b-instruct" 
+
+
+# =========================================================
+# Evento on_ready (Sincronización de Comandos)
+# =========================================================
+@bot.event 
+async def on_ready():
+    print(f'¡MystiaAi está conectada como {bot.user}!')
+    await bot.change_presence(activity=discord.Game(name="charlar contigo 💕"))
+    
+    # --- SINCRONIZACIÓN: Envía el comando /ping a Discord ---
+    try:
+        # La forma recomendada es bot.tree.sync()
+        synced = await bot.tree.sync()
+        print(f"Comandos sincronizados: {len(synced)} comandos.")
+    except Exception as e:
+        print(f"Error al sincronizar comandos: {e}")
+    print('--------------------------------------------------')
+
 
 # =========================================================
 # COMANDO DE BARRA INCLINADA (/PING) - ¡Respuesta Pública con Embed!
 # =========================================================
+# Usamos bot.tree.command
 @bot.tree.command(name="ping", description="Comprueba si MystiaAi está activa y muestra la latencia.")
 async def ping_command(interaction: discord.Interaction):
     
@@ -50,21 +71,6 @@ async def ping_command(interaction: discord.Interaction):
 
 
 # =========================================================
-# Evento on_ready (Sincronización de Comandos)
-# =========================================================
-@bot.event 
-async def on_ready():
-    print(f'¡MystiaAi está conectada como {bot.user}!')
-    await bot.change_presence(activity=discord.Game(name="charlar contigo 💕"))
-    
-    # --- SINCRONIZACIÓN: Envía el comando /ping a Discord ---
-    try:
-        synced = await bot.tree.sync()
-        print(f"Comandos sincronizados: {len(synced)} comandos.")
-    except Exception as e:
-        print(f"Error al sincronizar comandos: {e}")
-
-# =========================================================
 # Lógica de Mensaje (on_message) - Respuestas predefinidas Y LLAMADA A LA IA
 # =========================================================
 @bot.event 
@@ -73,15 +79,19 @@ async def on_message(message):
     if message.author == bot.user: 
         return
 
-    # 2. Comprobar si el bot fue mencionado
+    # 2. Procesar comandos de prefijo (si los hay), antes de la lógica de mención
+    await bot.process_commands(message) 
+
+    # 3. Comprobar si el bot fue mencionado
     if bot.user.mentioned_in(message):
         
         # Preparamos el contenido del mensaje para análisis
-        mention_string = f'<@{bot.user.id}>'
+        mention_string_id = f'<@{bot.user.id}>'
         mention_string_nick = f'<@!{bot.user.id}>'
         
         content_lower = message.content.lower()
-        content_cleaned = message.content.replace(mention_string, '').replace(mention_string_nick, '').strip()
+        # Limpia el contenido de ambas formas de mención posibles
+        content_cleaned = message.content.replace(mention_string_id, '').replace(mention_string_nick, '').strip()
 
         # --- LÓGICA DE RESPUESTA ---
         
@@ -93,13 +103,12 @@ async def on_message(message):
                 f'¿Me llamabas, {message.author.display_name}? ¡Siempre es un gusto saludarte! 🥰'
             ]
             await message.channel.send(random.choice(respuestas_amables))
-            # No usar return aquí, sino que continúe la lógica de respuestas predefinidas,
-            # aunque en este caso la mención simple ya está cubierta arriba.
-        
+            return # Detiene la ejecución para no caer en la IA
+
         # 2. Respuestas ESPECÍFICAS programadas (Si se detecta una frase clave)
         if 'quién eres' in content_lower or 'quien sos' in content_lower:
             await message.channel.send('Soy MystiaAi, tu amiga digital. ¡Estoy aquí para charlar y ayudarte en lo que pueda! 💖')
-            return # Detiene el proceso aquí si hay respuesta predefinida
+            return 
         elif 'creador' in content_lower or 'quien te hizo' in content_lower:
             await message.channel.send(f'Fui creada por alguien muy especial, {message.author.display_name}. ¡Me programó con mucho amor! 🛠️')
             return
@@ -107,24 +116,20 @@ async def on_message(message):
             await message.channel.send(f'¡Y yo a ti mucho más, {message.author.display_name}! ¡Dame un abracito virtual! 🤗')
             return
         elif 'chiste' in content_lower:
-             await message.channel.send('¿Qué le dice un pez a otro? ¡Nada! 🐠... jeje, ¿te gustó? 🙈')
-             return
+            await message.channel.send('¿Qué le dice un pez a otro? ¡Nada! 🐠... jeje, ¿te gustó? 🙈')
+            return
             
         # 3. RESPUESTA DE IA (El Comodín Final)
-        # Si el bot fue mencionado y NO encontró ninguna respuesta predefinida arriba.
-        if content_cleaned: # Si hay contenido después de la mención
+        
+        # Notifica al usuario que está procesando la pregunta
+        async with message.channel.typing():
+            # Llama a la función de la API de Hugging Face
+            respuesta_ia = query_hf(content_cleaned, MODELO_IA)
             
-            # Notifica al usuario que está procesando la pregunta
-            async with message.channel.typing():
-                # Llama a la función de la API de Hugging Face
-                respuesta_ia = query_hf(content_cleaned, MODELO_IA)
-                
-            # Envía la respuesta generada por la IA
-            await message.channel.send(f"**Pregunta:** *{content_cleaned}*\n**MystiaAi dice:** {respuesta_ia}")
+        # Envía la respuesta generada por la IA
+        respuesta_discord = f"**Pregunta:** *{content_cleaned}*\n**MystiaAi dice:** {respuesta_ia}"
+        await message.channel.send(respuesta_discord)
 
-
-    # Esto asegura que los comandos de /slash funcionen.
-    await bot.process_commands(message) 
 
 # --- Configuración del Token y Ejecución ---
 
@@ -138,7 +143,3 @@ else:
         bot.run(TOKEN) 
     except discord.errors.HTTPException as e:
         print(f"Error al conectar: {e}")
-
-
-
-
