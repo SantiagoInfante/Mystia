@@ -3,7 +3,8 @@ import os
 import random
 from discord.ext import commands 
 from dotenv import load_dotenv
-from keep_alive import keep_alive # <--- ¡IMPORTANTE PARA EL 24/7!
+from hf_api import query_hf # Importación de la función de IA
+from keep_alive import keep_alive 
 
 # Carga las variables del archivo .env
 load_dotenv()
@@ -13,8 +14,14 @@ intents = discord.Intents.default()
 intents.message_content = True 
 intents.messages = True
 
-# --- Inicialización del Bot ---s
+# --- Inicialización del Bot ---
 bot = commands.Bot(command_prefix='!', intents=intents) 
+
+# --- CONFIGURACIÓN DE IA ---
+# Define el modelo de Hugging Face a usar.
+# Asegúrate de que este modelo sea de texto generativo (ej. gpt2, facebook/opt-1.3b, etc.)
+MODELO_IA = "gpt2" 
+
 
 # =========================================================
 # COMANDO DE BARRA INCLINADA (/PING) - ¡Respuesta Pública con Embed!
@@ -58,7 +65,7 @@ async def on_ready():
         print(f"Error al sincronizar comandos: {e}")
 
 # =========================================================
-# Lógica de Mensaje (on_message) - Respuestas predefinidas
+# Lógica de Mensaje (on_message) - Respuestas predefinidas Y LLAMADA A LA IA
 # =========================================================
 @bot.event 
 async def on_message(message):
@@ -86,29 +93,35 @@ async def on_message(message):
                 f'¿Me llamabas, {message.author.display_name}? ¡Siempre es un gusto saludarte! 🥰'
             ]
             await message.channel.send(random.choice(respuestas_amables))
-            return 
+            # No usar return aquí, sino que continúe la lógica de respuestas predefinidas,
+            # aunque en este caso la mención simple ya está cubierta arriba.
         
-        # 2. Respuestas ESPECÍFICAS programadas
+        # 2. Respuestas ESPECÍFICAS programadas (Si se detecta una frase clave)
         if 'quién eres' in content_lower or 'quien sos' in content_lower:
             await message.channel.send('Soy MystiaAi, tu amiga digital. ¡Estoy aquí para charlar y ayudarte en lo que pueda! 💖')
-
+            return # Detiene el proceso aquí si hay respuesta predefinida
         elif 'creador' in content_lower or 'quien te hizo' in content_lower:
             await message.channel.send(f'Fui creada por alguien muy especial, {message.author.display_name}. ¡Me programó con mucho amor! 🛠️')
-
+            return
         elif 'te quiero' in content_lower:
             await message.channel.send(f'¡Y yo a ti mucho más, {message.author.display_name}! ¡Dame un abracito virtual! 🤗')
-
+            return
         elif 'chiste' in content_lower:
              await message.channel.send('¿Qué le dice un pez a otro? ¡Nada! 🐠... jeje, ¿te gustó? 🙈')
+             return
             
-        # 3. Respuesta UNIVERSAL / IA Simple (El Comodín)
-        else:
-            respuestas_ia_simple = [
-                f'¡Mmm! ¿Así que **{content_cleaned}**? Eso me hace pensar... mi programación aún no llega a ese nivel. 🥺',
-                f'¡Qué pregunta más profunda! No sé la respuesta a **{content_cleaned}**, pero investigaré para ti. 💖',
-                f'**{content_cleaned}**... ¡Vaya! Es complicado. Soy mejor dando amor que datos. ¿Probamos con algo más simple, cielo? 😊',
-            ]
-            await message.channel.send(random.choice(respuestas_ia_simple))
+        # 3. RESPUESTA DE IA (El Comodín Final)
+        # Si el bot fue mencionado y NO encontró ninguna respuesta predefinida arriba.
+        if content_cleaned: # Si hay contenido después de la mención
+            
+            # Notifica al usuario que está procesando la pregunta
+            async with message.channel.typing():
+                # Llama a la función de la API de Hugging Face
+                respuesta_ia = query_hf(content_cleaned, MODELO_IA)
+                
+            # Envía la respuesta generada por la IA
+            await message.channel.send(f"**Pregunta:** *{content_cleaned}*\n**MystiaAi dice:** {respuesta_ia}")
+
 
     # Esto asegura que los comandos de /slash funcionen.
     await bot.process_commands(message) 
@@ -121,7 +134,7 @@ if TOKEN is None:
     print("Error: No se encontró el DISCORD_TOKEN.")
 else:
     try:
-        keep_alive() # <--- ¡AQUÍ! Se llama a la función 24/7 antes de iniciar el bot.
+        keep_alive() # Llama a la función 24/7 antes de iniciar el bot.
         bot.run(TOKEN) 
     except discord.errors.HTTPException as e:
         print(f"Error al conectar: {e}")
