@@ -50,10 +50,8 @@ def query_hf(prompt, model_id):
         # --- DIAGNÓSTICO CLAVE ---
         # Si la solicitud falla, intentamos leer la respuesta como texto
         try:
-            # Si el error no fue JSON, leemos el texto puro del error
             error_text = response.text 
-            # Imprime el error real en el log de Render
-            print(f"ERROR DE HF DETECTADO (RAW TEXT): {error_text}") 
+            print(f"ERROR DE HF DETECTADO (RAW TEXT): {error_text}")
             
             # Devuelve un mensaje genérico de error al usuario
             return f"❌ Error de autenticación o servidor de HF. Por favor, revisa el log de Render."
