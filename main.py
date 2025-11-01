@@ -9,15 +9,6 @@ from keep_alive import keep_alive
 # Carga las variables del archivo .env
 load_dotenv()
 
-# =========================================================
-# ⚠️ DIAGNÓSTICO TEMPORAL: IMPRIME EL TOKEN DE HF PARA VERIFICAR LECTURA
-# ESTO DEBE SER BORRADO DESPUÉS DE LA PRUEBA.
-# =========================================================
-print(f"DEBUG: HF_TOKEN LEIDO: {os.environ.get('HF_TOKEN')}")
-# =========================================================
-# ⚠️ FIN DEL BLOQUE DE DIAGNÓSTICO
-# =========================================================
-
 # --- Configuración de Intents (Permisos) ---
 intents = discord.Intents.default()
 intents.message_content = True 
@@ -28,10 +19,9 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 
 # --- CONFIGURACIÓN DE IA ---
 # Define el modelo de Hugging Face a usar.
-# Asegúrate de que este modelo sea de texto generativo (ej. gpt2, facebook/opt-1.3b, etc.)
-MODELO_IA = "gpt2" 
+# Cambiado a un modelo más estable para la inferencia gratuita.
+MODELO_IA = "facebook/opt-125m" 
 # ... el resto de tu código ...
-
 
 # =========================================================
 # COMANDO DE BARRA INCLINADA (/PING) - ¡Respuesta Pública con Embed!
@@ -148,4 +138,5 @@ else:
         bot.run(TOKEN) 
     except discord.errors.HTTPException as e:
         print(f"Error al conectar: {e}")
+
 
