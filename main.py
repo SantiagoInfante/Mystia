@@ -20,7 +20,7 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 # --- CONFIGURACIÓN DE IA ---
 # Define el modelo de Hugging Face a usar.
 # Cambiado a un modelo más estable para la inferencia gratuita.
-MODELO_IA = "MiniMaxAI/MiniMax-M2" 
+MODELO_IA = "gpt2" 
 # ... el resto de tu código ...
 
 # =========================================================
@@ -138,6 +138,7 @@ else:
         bot.run(TOKEN) 
     except discord.errors.HTTPException as e:
         print(f"Error al conectar: {e}")
+
 
 
 
