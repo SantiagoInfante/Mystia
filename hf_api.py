@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 HF_API_TOKEN = os.getenv("HF_API_TOKEN")
 
-def query_hf(prompt, model="gpt2"):
+def query_hf(prompt, model="openai-community/gpt2"):
     url = f"https://api-inference.huggingface.co/models/{model}"
     headers = {
         "Authorization": f"Bearer {HF_API_TOKEN}"
