@@ -14,9 +14,9 @@ intents = discord.Intents.default()
 intents.message_content = True
 client = discord.Client(intents=intents)
 
-# Cliente de Hugging Face (usa el router nuevo automáticamente)
+# Cliente de Hugging Face (modo chat)
 hf_client = InferenceClient(
-    model="mistralai/Mistral-7B-Instruct-v0.2",
+    model="mistralai/Mistral-7B-Instruct-v0.2",  # Modelo de chat válido
     token=HF_API_TOKEN
 )
 
@@ -52,7 +52,7 @@ async def on_message(message):
             await message.channel.send("⏳ Pensando con Hugging Face...")
 
             try:
-                # Llamada síncrona → la corremos en un hilo aparte
+                # Llamada síncrona → ejecutada en un hilo aparte
                 completion = await asyncio.to_thread(
                     hf_client.chat.completions.create,
                     messages=[{"role": "user", "content": pregunta}],
@@ -72,6 +72,3 @@ if DISCORD_TOKEN:
     client.run(DISCORD_TOKEN)
 else:
     print("❌ ERROR: No se encontró el token de Discord en las variables de entorno.")
-
-
-
