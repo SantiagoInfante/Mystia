@@ -14,9 +14,10 @@ intents = discord.Intents.default()
 intents.message_content = True
 client = discord.Client(intents=intents)
 
-# Cliente de Hugging Face (modo chat)
+# Cliente de Hugging Face (modo text_generation)
+# Asegúrate de que el modelo sea el correcto (zephyr)
 hf_client = InferenceClient(
-    model="mistralai/Mixtral-8x7B-Instruct-v0.1",  # Modelo de chat válido
+    model="HuggingFaceH4/zephyr-7b-beta",  # Usamos este modelo
     token=HF_API_TOKEN
 )
 
@@ -52,16 +53,41 @@ async def on_message(message):
             await message.channel.send("⏳ Pensando con Hugging Face...")
 
             try:
-                # Llamada síncrona → ejecutada en un hilo aparte
-                completion = await asyncio.to_thread(
-                    hf_client.chat.completions.create,
-                    messages=[{"role": "user", "content": pregunta}],
-                    max_tokens=200,
+                # --- INICIO DE LA CORRECCIÓN ---
+
+                # 1. Formateamos el prompt para el modelo Zephyr
+                #    Este formato especial <|...|> le dice al modelo
+                #    quién está hablando (sistema, usuario, asistente).
+                prompt_formateado = (
+                    f"<|system|>\nEres un asistente útil.</s>\n"
+                    f"<|user|>\n{pregunta}</s>\n"
+                    f"<|assistant|>"
                 )
-                respuesta = completion.choices[0].message["content"]
+
+                # 2. Usamos .text_generation() en lugar de .chat.completions.create()
+                #    Es un método más genérico y compatible con más modelos.
+                respuesta_raw = await asyncio.to_thread(
+                    hf_client.text_generation,
+                    prompt=prompt_formateado,
+                    max_new_tokens=250,  # Usamos max_new_tokens
+                    do_sample=True,
+                    temperature=0.7,
+                    top_p=0.95,
+                    top_k=50,
+                    repetition_penalty=1.1,
+                    stop_sequences=["</s>", "<|user|>"], # Importante: para que el bot no hable por el usuario
+                )
+                
+                # 3. La respuesta de .text_generation() es un string simple,
+                #    no un objeto complejo como antes.
+                respuesta = respuesta_raw.strip()
+
+                # --- FIN DE LA CORRECCIÓN ---
+
             except Exception as e:
                 respuesta = f"Ocurrió un error al consultar la IA: {e}"
 
+            # Evita enviar mensajes vacíos
             await message.channel.send(respuesta or "No tengo respuesta.")
         else:
             await message.channel.send("¿Qué quieres preguntarme?")
@@ -72,6 +98,3 @@ if DISCORD_TOKEN:
     client.run(DISCORD_TOKEN)
 else:
     print("❌ ERROR: No se encontró el token de Discord en las variables de entorno.")
-
-
-
