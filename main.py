@@ -1,78 +1,108 @@
-import os
 import discord
-import aiohttp
-import asyncio
+import requests
+import os
+from dotenv import load_dotenv
 
-# Cargar tokens desde variables de entorno
+# Cargar las variables de entorno del archivo .env
+load_dotenv()
+
+# --- Configuración de Tokens y API ---
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-HF_API_TOKEN = os.getenv("HF_API_TOKEN")
+HFAPI_TOKEN = os.getenv("HFAPI_TOKEN")
 
-# Configurar intents
+# Elige un modelo de texto gratuito en Hugging Face (text-generation)
+# Puedes cambiar este modelo por otro que te guste, como 'google/gemma-2b' o 'mistralai/Mistral-7B-v0.1'
+API_URL = "https://api-inference.huggingface.co/models/google/gemma-2b"
+
+# --- Inicialización del Bot de Discord ---
 intents = discord.Intents.default()
-intents.message_content = True
+intents.message_content = True 
+
 client = discord.Client(intents=intents)
 
-# Endpoint de Hugging Face con GPT-Neo (no GPT-2)
-HF_API_URL = "https://api-inference.huggingface.co/models/EleutherAI/gpt-neo-125M"
-headers = {"Authorization": f"Bearer {HF_API_TOKEN}"}
+# --- Función para comunicarse con la API de Hugging Face ---
+def generate_response(prompt):
+    """
+    Envía el prompt al modelo de Hugging Face a través de su API.
+    """
+    if not HUGGINGFACE_TOKEN:
+        return "Error: Token de Hugging Face no configurado."
+        
+    headers = {"Authorization": f"Bearer {HFAPI_TOKEN}"}
+    
+    # Parámetros para la generación de texto
+    payload = {
+        "inputs": prompt,
+        "parameters": {
+            "max_new_tokens": 100, # Longitud máxima de la respuesta
+            "temperature": 0.8,
+            "return_full_text": False # Solo devuelve el texto generado, no el prompt + texto
+        }
+    }
+    
+    try:
+        response = requests.post(API_URL, headers=headers, json=payload, timeout=30)
+        response.raise_for_status() # Lanza una excepción para códigos de estado de error (4xx o 5xx)
+        
+        # El formato de respuesta es una lista de diccionarios
+        result = response.json()
+        if result and isinstance(result, list) and 'generated_text' in result[0]:
+            # Limpiamos el texto para asegurar que no contenga el prompt si API lo incluyó
+            reply = result[0]['generated_text'].strip()
+            return reply
+        else:
+            print(f"Respuesta inesperada de la API: {result}")
+            return "Lo siento, la API me dio una respuesta inválida."
 
-# Función para consultar GPT-Neo usando aiohttp
-async def query_model(prompt: str):
-    payload = {"inputs": prompt, "max_length": 150, "temperature": 0.8}
-    async with aiohttp.ClientSession() as session:
-        async with session.post(HF_API_URL, headers=headers, json=payload) as response:
-            if response.status == 200:
-                data = await response.json()
-                if isinstance(data, list) and "generated_text" in data[0]:
-                    return data[0]["generated_text"]
-                elif isinstance(data, dict) and "error" in data:
-                    return f"Error de API: {data['error']}"
-                else:
-                    return "Lo siento, la API no devolvió un texto válido."
-            else:
-                return f"Error de API ({response.status}): {await response.text()}"
+    except requests.exceptions.RequestException as e:
+        print(f"Error de conexión con la API de Hugging Face: {e}")
+        return "Lo siento, no pude conectarme al servidor de IA. Inténtalo más tarde."
+
+# --- Eventos de Discord ---
 
 @client.event
 async def on_ready():
-    print(f"✅ Bot conectado como {client.user}")
+    """Se ejecuta cuando el bot se ha conectado a Discord."""
+    print(f'🤖 Bot de IA conectado como {client.user}!')
+    print('-------------------------------------------')
 
 @client.event
 async def on_message(message):
+    """Se ejecuta cada vez que se envía un mensaje."""
+    
+    # 1. Ignorar mensajes del propio bot
     if message.author == client.user:
         return
 
+    # 2. Verificar si el bot fue mencionado
     if client.user.mentioned_in(message):
-        pregunta = (
-            message.content.replace(f"<@{client.user.id}>", "")
-            .replace(f"<@!{client.user.id}>", "")
-            .strip()
-        )
+        
+        # Obtener el texto del mensaje sin la mención del bot
+        mention_string = client.user.mention
+        prompt = message.content.replace(mention_string, '').strip()
+        
+        if not prompt:
+            prompt = "Hola, ¿cómo estás?" # Mensaje por defecto si solo se menciona
 
-        if pregunta:
-            await message.channel.send("⏳ Pensando con GPT‑Neo...")
+        # Enviamos un mensaje de "Pensando..."
+        typing_task = client.loop.create_task(message.channel.typing()) # Muestra el estado de "Escribiendo..."
+        
+        try:
+            # 3. Llamar a la función de generación de texto (se conecta a Hugging Face)
+            reply = generate_response(prompt)
+            
+            # 4. Enviar la respuesta
+            await message.reply(reply) 
+            
+        finally:
+            typing_task.cancel() # Detenemos el estado de "Escribiendo..."
 
-            try:
-                respuesta = await query_model(pregunta)
-            except Exception as e:
-                respuesta = f"Ocurrió un error de conexión: {e}"
+# --- Ejecución del Bot ---
 
-            if respuesta.startswith("Error de API") or respuesta.startswith("Ocurrió un error"):
-                await message.channel.send(respuesta)
-                return
-
-            # Recorte seguro: eliminar el prompt si está repetido
-            if respuesta.startswith(pregunta):
-                respuesta_final = respuesta[len(pregunta):].strip()
-            else:
-                respuesta_final = respuesta.strip()
-
-            await message.channel.send(respuesta_final or "No tengo respuesta.")
-        else:
-            await message.channel.send("¿Qué quieres preguntarme?")
-
-# Iniciar el bot
-if DISCORD_TOKEN:
-    client.run(DISCORD_TOKEN)
-else:
-    print("❌ ERROR: No se encontró el token de Discord en las variables de entorno.")
-
+if __name__ == "__main__":
+    if not DISCORD_TOKEN:
+        print("🛑 ERROR: No se encontró el DISCORD_TOKEN en el archivo .env.")
+    elif not HUGGINGFACE_TOKEN:
+        print("🛑 AVISO: No se encontró el HFAPI_TOKEN en el archivo .env. La IA no funcionará.")
+    else:
+        client.run(DISCORD_TOKEN)
