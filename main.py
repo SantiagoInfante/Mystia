@@ -9,15 +9,18 @@ import threading
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 HF_API_TOKEN = os.getenv("HF_API_TOKEN")
 
-# Configurar intents
+# Configurar intents de Discord
 intents = discord.Intents.default()
 intents.message_content = True
 client = discord.Client(intents=intents)
 
-# Cliente de Hugging Face
-hf_client = InferenceClient(token=HF_API_TOKEN)
+# Cliente de Hugging Face (usa el router nuevo automáticamente)
+hf_client = InferenceClient(
+    model="mistralai/Mistral-7B-Instruct-v0.2",
+    token=HF_API_TOKEN
+)
 
-# --- Servidor Flask mínimo ---
+# --- Servidor Flask mínimo para Render ---
 app = Flask(__name__)
 
 @app.route("/")
@@ -28,7 +31,7 @@ def run_flask():
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
 
-# --- Discord Bot ---
+# --- Eventos de Discord ---
 @client.event
 async def on_ready():
     print(f"✅ Bot conectado como {client.user}")
@@ -49,15 +52,15 @@ async def on_message(message):
             await message.channel.send("⏳ Pensando con Hugging Face...")
 
             try:
+                # Llamada síncrona → la corremos en un hilo aparte
                 completion = await asyncio.to_thread(
                     hf_client.chat.completions.create,
-                    model="mistralai/Mistral-7B-Instruct-v0.2",
                     messages=[{"role": "user", "content": pregunta}],
                     max_tokens=200,
                 )
                 respuesta = completion.choices[0].message["content"]
             except Exception as e:
-                respuesta = f"Ocurrió un error: {e}"
+                respuesta = f"Ocurrió un error al consultar la IA: {e}"
 
             await message.channel.send(respuesta or "No tengo respuesta.")
         else:
@@ -65,9 +68,7 @@ async def on_message(message):
 
 # --- Lanzar Flask y Discord ---
 if DISCORD_TOKEN:
-    # Flask en un hilo aparte
     threading.Thread(target=run_flask).start()
-    # Discord en el hilo principal
     client.run(DISCORD_TOKEN)
 else:
     print("❌ ERROR: No se encontró el token de Discord en las variables de entorno.")
