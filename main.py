@@ -75,3 +75,4 @@ if DISCORD_TOKEN:
     client.run(DISCORD_TOKEN)
 else:
     print("❌ ERROR: No se encontró el token de Discord en las variables de entorno.")
+
