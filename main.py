@@ -4,7 +4,8 @@ import random
 from discord.ext import commands
 from discord import app_commands
 from dotenv import load_dotenv
-from hf_api import query_hf # Suponiendo que tu Script 1 se llama hf_api.py
+# --- CAMBIO CLAVE 1: Importamos el módulo completo ---
+import hf_api 
 from keep_alive import keep_alive
 
 # Cargar variables del archivo .env
@@ -17,8 +18,7 @@ intents.messages = True
 
 # --- Inicialización del bot ---
 bot = commands.Bot(command_prefix='!', intents=intents)
-
-# NOTA: Se eliminó la variable MODELO_IA ya que query_hf ya tiene el valor por defecto
+# NOTA: Se eliminó la variable MODELO_IA ya que la lógica está en hf_api.py
 
 # =========================================================
 # Evento on_ready (Inicio del bot y sincronización de comandos)
@@ -29,6 +29,11 @@ async def on_ready():
     await bot.change_presence(activity=discord.Game(name="charlar contigo 💕"))
 
     try:
+        # Esto asegura que el modelo de IA se intente cargar en la fase de inicio, 
+        # antes de que el bot necesite responder a mensajes.
+        print("Intentando inicializar modelo de IA (puede tardar en Render)...")
+        # El modelo se carga en el módulo hf_api.py cuando se importa.
+
         synced = await bot.tree.sync()
         print(f"Comandos sincronizados: {len(synced)} comandos.")
     except Exception as e:
@@ -67,23 +72,34 @@ async def on_message(message):
         mention_id = f'<@{bot.user.id}>'
         mention_nick = f'<@!{bot.user.id}>'
         content_lower = message.content.lower()
+        # Limpieza del mensaje
         content_cleaned = message.content.replace(mention_id, '').replace(mention_nick, '').strip()
 
-        # Respuestas predefinidas (código omitido por brevedad, no se modifica)
-        # ...
+        # --- Lógica de respuestas predefinidas (omisiones por brevedad) ---
+        if not content_cleaned:
+            respuestas_amables = [
+                f'¡Hola, {message.author.display_name}! ✨ ¿Necesitas algo, cielo?',
+                '¡Aquí estoy! ¿En qué puedo ayudarte, corazón? 😊',
+                f'¿Me llamabas, {message.author.display_name}? ¡Siempre es un gusto saludarte! 🥰'
+            ]
+            await message.channel.send(random.choice(respuestas_amables))
+            return
+        
+        # ... (otras respuestas predefinidas) ...
+        # --- Fin de la lógica de respuestas predefinidas ---
 
         # Respuesta generada por IA
         async with message.channel.typing():
-            # LLAMADA CORREGIDA: Ya no pasamos el modelo. Se usa el valor por defecto.
-            respuesta_ia = query_hf(content_cleaned) 
+            # --- CAMBIO CLAVE 2: Llamada a la función a través del módulo ---
+            respuesta_ia = hf_api.query_hf(content_cleaned) 
 
         respuesta_discord = f"**Pregunta:** *{content_cleaned}*\n**MystiaAi dice:** {respuesta_ia}"
         await message.channel.send(respuesta_discord)
 
 # =========================================================
-# Ejecución del bot (código omitido por brevedad, no se modifica)
+# Ejecución del bot
 # =========================================================
-
+# --- CORRECCIÓN FINAL de error de sintaxis ---
 TOKEN = os.getenv('DISCORD_TOKEN')
 
 if TOKEN is None:
@@ -94,4 +110,3 @@ else:
         bot.run(TOKEN)
     except discord.errors.HTTPException as e:
         print(f"❌ Error al conectar: {e}")
-
