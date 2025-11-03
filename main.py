@@ -83,7 +83,8 @@ async def on_message(message):
 # =========================================================
 # Ejecución del bot (código omitido por brevedad, no se modifica)
 # =========================================================
-TOKEN = os.environ.environ.get('DISCORD_TOKEN') # Corregido a os.environ.get('DISCORD_TOKEN')
+
+TOKEN = os.getenv('DISCORD_TOKEN')
 
 if TOKEN is None:
     print("❌ Error: No se encontró el DISCORD_TOKEN.")
@@ -93,3 +94,4 @@ else:
         bot.run(TOKEN)
     except discord.errors.HTTPException as e:
         print(f"❌ Error al conectar: {e}")
+
