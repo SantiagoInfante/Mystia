@@ -5,11 +5,23 @@ from dotenv import load_dotenv
 load_dotenv()
 HF_API_TOKEN = os.getenv("HF_API_TOKEN")
 
-def query_hf(prompt, model="mistralai/Mistral-7B-v0.1"):
+def query_hf(prompt, model="openai-community/gpt2"):
+    # --- LÍNEAS DE DIAGNÓSTICO A COPIAR ---
+    print(f"DEBUG: El modelo utilizado es: {model}")
+    # ---------------------------------------
+    
     url = f"https://api-inference.huggingface.co/models/{model}"
+    
+    # --- LÍNEA DE DIAGNÓSTICO A COPIAR ---
+    print(f"DEBUG: La URL generada es: {url}")
+    # ---------------------------------------
+    
     headers = {
         "Authorization": f"Bearer {HF_API_TOKEN}"
     }
+    # ... el resto del código ...
+    
+    # ...
     payload = {
         "inputs": prompt,
         "parameters": {
