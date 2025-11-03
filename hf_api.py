@@ -1,39 +1,62 @@
-import requests
+from transformers import pipeline
 import os
-from dotenv import load_dotenv
 
-load_dotenv()
-HF_API_TOKEN = os.getenv("HF_API_TOKEN")
+# NOTA: Ya no necesitamos load_dotenv ni HF_API_TOKEN aquí.
 
-def query_hf(prompt, model="openai-community/gpt2"):
-    # --- LÍNEAS DE DIAGNÓSTICO A COPIAR ---
-    print(f"DEBUG: El modelo utilizado es: {model}")
-    # ---------------------------------------
-    
-    url = f"https://api-inference.huggingface.co/models/{model}"
-    
-    # --- LÍNEA DE DIAGNÓSTICO A COPIAR ---
-    print(f"DEBUG: La URL generada es: {url}")
-    # ---------------------------------------
-    
-    headers = {
-        "Authorization": f"Bearer {HF_API_TOKEN}"
-    }
-    # ... el resto del código ...
-    
-    # ...
-    payload = {
-        "inputs": prompt,
-        "parameters": {
-            "max_length": 50,
-            "do_sample": True
-        }
-    }
+# =========================================================
+# CONFIGURACIÓN GLOBAL (Carga única al iniciar el bot)
+# =========================================================
 
+# NOTA IMPORTANTE: Esta carga es lenta y consume memoria.
+# Render debe tener suficiente RAM para correr esto.
+MODEL_NAME = "openai-community/gpt2"
+try:
+    # El pipeline gestiona el modelo y el tokenizador automáticamente.
+    # Usamos un generador de bajo nivel para más control sobre la salida.
+    global pipe
+    pipe = pipeline(
+        "text-generation", 
+        model=MODEL_NAME,
+        device=-1 # Ejecutar en CPU (necesario si no hay GPU)
+    )
+    print(f"✅ IA: Modelo {MODEL_NAME} cargado exitosamente de forma local.")
+except Exception as e:
+    print(f"❌ ERROR al cargar el modelo Transformers localmente: {e}")
+    # En caso de error, el pipe se deja como None para evitar fallos.
+    pipe = None
+
+
+# =========================================================
+# FUNCIÓN DE CONSULTA (query_hf)
+# =========================================================
+
+def query_hf(prompt, model=MODEL_NAME):
+    # Si la carga del modelo falló, regresamos un error inmediato.
+    if pipe is None:
+        return "Lo siento, la IA no se pudo inicializar en el servidor. Revisa los logs de Render."
+        
     try:
-        response = requests.post(url, headers=headers, json=payload)
-        response.raise_for_status()
-        result = response.json()
-        return result[0]["generated_text"]
+        # 1. Generar texto usando el pipeline.
+        result = pipe(
+            prompt,
+            max_length=50,
+            do_sample=True,
+            top_k=50,         # Mejora la calidad de la muestra
+            top_p=0.95,       # Mejora la calidad de la muestra
+            num_return_sequences=1,
+            # Evita que el generador cree más de una respuesta si encuentra fin de texto.
+            eos_token_id=pipe.tokenizer.eos_token_id 
+        )
+        
+        # 2. Devolver el texto generado (el pipeline devuelve una lista de diccionarios).
+        # Hacemos un poco de limpieza extra para que no incluya el prompt en la respuesta de Discord.
+        full_text = result[0]["generated_text"]
+        
+        # Elimina el prompt del texto generado para que no se repita en la respuesta de Discord
+        if full_text.startswith(prompt):
+            return full_text[len(prompt):].strip()
+        
+        return full_text
+        
     except Exception as e:
-        return f"Lo siento, hubo un error al consultar la IA: {e}"
+        return f"Lo siento, hubo un error al generar la respuesta de la IA: {e}"
