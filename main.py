@@ -17,7 +17,7 @@ intents.messages = True
 
 # --- Inicialización del bot ---
 bot = commands.Bot(command_prefix='!', intents=intents)
-MODELO_IA = "openai-community/gpt2"  # Puedes cambiarlo por otro modelo de Hugging Face
+MODELO_IA = "mistralai/Mistral-7B-v0.1"  # Puedes cambiarlo por otro modelo de Hugging Face
 
 # =========================================================
 # Evento on_ready (Inicio del bot y sincronización de comandos)
@@ -111,4 +111,5 @@ else:
         bot.run(TOKEN)
     except discord.errors.HTTPException as e:
         print(f"❌ Error al conectar: {e}")
+
 
