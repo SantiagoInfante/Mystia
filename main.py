@@ -12,10 +12,20 @@ headers = {"Authorization": f"Bearer {HF_API_TOKEN}"}
 
 # Función para consultar GPT-2 usando aiohttp (asíncrono)
 async def query_gpt2(prompt: str):
-    # ... (body of query_gpt2 function remains the same, it's already asynchronous)
-    # El manejo de errores dentro de la función ya es bueno y asíncrono.
-    
-# ... (rest of the code up to on_message)
+    payload = {"inputs": prompt, "max_length": 100, "temperature": 0.7}
+    async with aiohttp.ClientSession() as session:
+        async with session.post(HF_API_URL, headers=headers, json=payload) as response:
+            if response.status == 200:
+                data = await response.json()
+                if isinstance(data, list) and "generated_text" in data[0]:
+                    return data[0]["generated_text"]
+                elif isinstance(data, dict) and "error" in data:
+                    return f"Error de API: {data['error']}"
+                else:
+                    return "Lo siento, la API no devolvió un texto generado válido."
+            else:
+                return f"Error de API ({response.status}): {await response.text()}"
+
 
 @client.event
 async def on_message(message):
@@ -63,3 +73,4 @@ async def on_message(message):
             await message.channel.send("¿Qué quieres preguntarme?")
 
 # ... (rest of the code)
+
