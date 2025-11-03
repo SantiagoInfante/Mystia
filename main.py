@@ -16,7 +16,7 @@ client = discord.Client(intents=intents)
 
 # Cliente de Hugging Face (usa el router nuevo automáticamente)
 hf_client = InferenceClient(
-    model="mistralai/Mistral-7B-Instruct-v0.2",
+    model="gpt-2",
     token=HF_API_TOKEN
 )
 
@@ -72,3 +72,4 @@ if DISCORD_TOKEN:
     client.run(DISCORD_TOKEN)
 else:
     print("❌ ERROR: No se encontró el token de Discord en las variables de entorno.")
+
