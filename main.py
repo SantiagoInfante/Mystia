@@ -1,114 +1,57 @@
-import discord
 import os
-import random
-from discord.ext import commands
-from discord import app_commands
-from dotenv import load_dotenv
-from hf_api import query_hf
-from keep_alive import keep_alive
+import discord
+import requests
+import json
+import asyncio
 
-# Cargar variables del archivo .env
-load_dotenv()
+# Cargar tokens desde variables de entorno
+DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
+HF_API_TOKEN = os.getenv("HF_API_TOKEN")
 
-# --- Intents (Permisos del bot) ---
+# Configurar intents para que el bot pueda leer mensajes
 intents = discord.Intents.default()
 intents.message_content = True
-intents.messages = True
 
-# --- Inicialización del bot ---
-bot = commands.Bot(command_prefix='!', intents=intents)
-MODELO_IA = "openai-community/gpt2"  # Puedes cambiarlo por otro modelo de Hugging Face
+client = discord.Client(intents=intents)
 
-# =========================================================
-# Evento on_ready (Inicio del bot y sincronización de comandos)
-# =========================================================
-@bot.event
+# Endpoint de Hugging Face para GPT-2
+HF_API_URL = "https://api-inference.huggingface.co/models/gpt2"
+headers = {"Authorization": f"Bearer {HF_API_TOKEN}"}
+
+# Función para consultar GPT-2
+def query_gpt2(prompt: str):
+    payload = {"inputs": prompt, "max_length": 100, "temperature": 0.7}
+    response = requests.post(HF_API_URL, headers=headers, json=payload)
+    if response.status_code == 200:
+        data = response.json()
+        if isinstance(data, list) and "generated_text" in data[0]:
+            return data[0]["generated_text"]
+        else:
+            return "Lo siento, no pude generar una respuesta."
+    else:
+        return f"Error {response.status_code}: {response.text}"
+
+@client.event
 async def on_ready():
-    print(f'✅ MystiaAi está conectada como {bot.user}')
-    await bot.change_presence(activity=discord.Game(name="charlar contigo 💕"))
+    print(f"✅ Bot conectado como {client.user}")
 
-    try:
-        synced = await bot.tree.sync()
-        print(f"Comandos sincronizados: {len(synced)} comandos.")
-    except Exception as e:
-        print(f"Error al sincronizar comandos: {e}")
-    print('--------------------------------------------------')
-
-# =========================================================
-# Comando de barra /ping
-# =========================================================
-@bot.tree.command(name="ping", description="Comprueba si MystiaAi está activa y muestra la latencia.")
-async def ping_command(interaction: discord.Interaction):
-    embed = discord.Embed(
-        title="🏓 ¡Pong!",
-        description="¡MystiaAi está online y funcionando perfectamente! 😊",
-        color=0x40E0D0
-    )
-    embed.add_field(
-        name="Latencia:",
-        value=f"**{round(bot.latency * 1000)}ms**",
-        inline=True
-    )
-    embed.set_footer(text=f"Solicitado por {interaction.user.display_name}")
-    await interaction.response.send_message(embed=embed)
-
-# =========================================================
-# Evento on_message (Respuestas automáticas y conexión con IA)
-# =========================================================
-@bot.event
+@client.event
 async def on_message(message):
-    if message.author == bot.user:
+    # Evitar que el bot se responda a sí mismo
+    if message.author == client.user:
         return
 
-    await bot.process_commands(message)
+    # Verificar si el bot fue mencionado
+    if client.user.mentioned_in(message):
+        pregunta = message.content.replace(f"<@{client.user.id}>", "").strip()
+        if pregunta:
+            await message.channel.send("⏳ Pensando con GPT-2...")
+            respuesta = query_gpt2(pregunta)
+            # Enviar solo la parte generada después del prompt
+            respuesta_final = respuesta[len(pregunta):].strip()
+            await message.channel.send(respuesta_final or "No tengo respuesta.")
+        else:
+            await message.channel.send("¿Qué quieres preguntarme?")
 
-    if bot.user.mentioned_in(message):
-        mention_id = f'<@{bot.user.id}>'
-        mention_nick = f'<@!{bot.user.id}>'
-        content_lower = message.content.lower()
-        content_cleaned = message.content.replace(mention_id, '').replace(mention_nick, '').strip()
-
-        # Respuestas predefinidas
-        if not content_cleaned:
-            respuestas_amables = [
-                f'¡Hola, {message.author.display_name}! ✨ ¿Necesitas algo, cielo?',
-                '¡Aquí estoy! ¿En qué puedo ayudarte, corazón? 😊',
-                f'¿Me llamabas, {message.author.display_name}? ¡Siempre es un gusto saludarte! 🥰'
-            ]
-            await message.channel.send(random.choice(respuestas_amables))
-            return
-
-        if 'quién eres' in content_lower or 'quien sos' in content_lower:
-            await message.channel.send('Soy MystiaAi, tu amiga digital. ¡Estoy aquí para charlar y ayudarte en lo que pueda! 💖')
-            return
-        elif 'creador' in content_lower or 'quien te hizo' in content_lower:
-            await message.channel.send(f'Fui creada por alguien muy especial, {message.author.display_name}. ¡Me programó con mucho amor! 🛠️')
-            return
-        elif 'te quiero' in content_lower:
-            await message.channel.send(f'¡Y yo a ti mucho más, {message.author.display_name}! ¡Dame un abracito virtual! 🤗')
-            return
-        elif 'chiste' in content_lower:
-            await message.channel.send('¿Qué le dice un pez a otro? ¡Nada! 🐠... jeje, ¿te gustó? 🙈')
-            return
-
-        # Respuesta generada por IA
-        async with message.channel.typing():
-            respuesta_ia = query_hf(content_cleaned)
-
-        respuesta_discord = {respuesta_ia}"
-        await message.channel.send(respuesta_discord)
-
-# =========================================================
-# Ejecución del bot
-# =========================================================
-TOKEN = os.environ.get('DISCORD_TOKEN')
-
-if TOKEN is None:
-    print("❌ Error: No se encontró el DISCORD_TOKEN.")
-else:
-    try:
-        keep_alive()
-        bot.run(TOKEN)
-    except discord.errors.HTTPException as e:
-        print(f"❌ Error al conectar: {e}")
-
+# Iniciar el bot
+client.run(DISCORD_TOKEN)
