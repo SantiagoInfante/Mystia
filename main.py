@@ -1,7 +1,6 @@
 import discord
 import requests
 import os
-from dotenv import load_dotenv
 
 # Cargar las variables de entorno del archivo .env
 load_dotenv()
@@ -106,3 +105,4 @@ if __name__ == "__main__":
         print("🛑 AVISO: No se encontró el HFAPI_TOKEN en el archivo .env. La IA no funcionará.")
     else:
         client.run(DISCORD_TOKEN)
+
