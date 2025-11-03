@@ -16,7 +16,7 @@ client = discord.Client(intents=intents)
 
 # Cliente de Hugging Face (modo chat)
 hf_client = InferenceClient(
-    model="HuggingFaceH4/zephyr-7b-beta",  # Modelo de chat válido
+    model="mistralai/Mixtral-8x7B-Instruct-v0.1",  # Modelo de chat válido
     token=HF_API_TOKEN
 )
 
@@ -72,5 +72,6 @@ if DISCORD_TOKEN:
     client.run(DISCORD_TOKEN)
 else:
     print("❌ ERROR: No se encontró el token de Discord en las variables de entorno.")
+
 
 
