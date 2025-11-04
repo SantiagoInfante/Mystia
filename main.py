@@ -31,20 +31,6 @@ def run_flask():
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
 
-# --- Función Auxiliar Síncrona para evadir el error de asyncio ---
-def generar_respuesta_sincrona(prompt_text):
-    """Llama a la API de Hugging Face de forma síncrona."""
-    # Usamos 'stop' en lugar de 'stop_sequences' para eliminar la advertencia
-    respuesta_raw = hf_client.text_generation(
-        prompt=prompt_text,
-        max_new_tokens=250,
-        do_sample=True,
-        temperature=0.7,
-        stop=["</s>", "[INST]"],
-    )
-    return respuesta_raw.strip()
-
-
 # --- Eventos de Discord ---
 @client.event
 async def on_ready():
@@ -65,16 +51,35 @@ async def on_message(message):
         if pregunta:
             await message.channel.send("⏳ Pensando con Hugging Face...")
 
+            # -----------------------------------------------------------------
+            # CORRECCIÓN FINAL: Usar run_in_executor para evitar el TypeError: StopIteration
+            # -----------------------------------------------------------------
+            
+            # 1. Definimos la función de llamada síncrona
+            def call_hf_api(prompt_text):
+                # El cliente de Hugging Face debe ser llamado de forma síncrona
+                # sin asyncio.to_thread para evitar el error.
+                respuesta_raw = hf_client.text_generation(
+                    prompt=prompt_text,
+                    max_new_tokens=250,
+                    do_sample=True,
+                    temperature=0.7,
+                    stop=["</s>", "[INST]"],
+                )
+                return respuesta_raw.strip()
+
             try:
-                # 1. Formateamos el prompt
+                # 2. Formateamos el prompt
                 prompt_formateado = (
                     f"<s>[INST] Eres un asistente útil y amigable. Responde de forma concisa. "
                     f"Pregunta: {pregunta} [/INST]"
                 )
 
-                # 2. Llamamos a la función síncrona dentro de asyncio.to_thread
-                respuesta = await asyncio.to_thread(
-                    generar_respuesta_sincrona,
+                # 3. Ejecutamos la función síncrona en un hilo separado
+                #    usando el executor del loop de Discord.py.
+                respuesta = await client.loop.run_in_executor(
+                    None, # None usa el executor por defecto (ThreadPoolExecutor)
+                    call_hf_api, 
                     prompt_formateado
                 )
                 
@@ -90,7 +95,6 @@ async def on_message(message):
 
 # --- Lanzar Flask y Discord ---
 if DISCORD_TOKEN:
-    # Nota: Tu bot ya está funcionando en un hilo, esta es la forma estándar de hacerlo.
     threading.Thread(target=run_flask).start()
     client.run(DISCORD_TOKEN)
 else:
