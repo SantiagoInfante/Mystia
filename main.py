@@ -63,7 +63,7 @@ async def on_message(message):
         )
 
         if pregunta:
-            await message.channel.send("⏳ Pensando con Cohere...")
+            await message.channel.send("⏳ Pensando...")
 
             # Ejecutamos la llamada en un hilo separado para no bloquear el loop
             respuesta = await client.loop.run_in_executor(
@@ -82,3 +82,4 @@ if DISCORD_TOKEN and HF_API_TOKEN:
     client.run(DISCORD_TOKEN)
 else:
     print("❌ ERROR: Faltan variables de entorno DISCORD_TOKEN o HF_API_TOKEN")
+
