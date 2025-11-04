@@ -16,7 +16,7 @@ client = discord.Client(intents=intents)
 
 # URL del endpoint de la API de Inferencia de Hugging Face
 # CAMBIO CLAVE: Usamos Mistral-7B-Instruct-v0.2, que suele estar disponible.
-HF_API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
+HF_API_URL = "https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8B-Instruct"
 
 # --- Servidor Flask mínimo para Render ---
 app = Flask(__name__)
@@ -122,3 +122,4 @@ if DISCORD_TOKEN:
     client.run(DISCORD_TOKEN)
 else:
     print("❌ ERROR: No se encontró el token de Discord en las variables de entorno.")
+
