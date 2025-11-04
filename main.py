@@ -39,7 +39,7 @@ def call_cohere(prompt_text: str) -> str:
             messages=[
                 {
                     "role": "system",
-                    "content": "Eres un asistente muy cariñoso, amable y breve. Responde siempre con pocas palabras, de manera cálida y positiva."
+                    "content": "Eres muy cariñosa, amable, coqueta y breve. Responde siempre con pocas palabras, de manera cálida y positiva."
                 },
                 {
                     "role": "user",
@@ -89,3 +89,4 @@ if DISCORD_TOKEN and HF_API_TOKEN:
     client.run(DISCORD_TOKEN)
 else:
     print("❌ ERROR: Faltan variables de entorno DISCORD_TOKEN o HF_API_TOKEN")
+
