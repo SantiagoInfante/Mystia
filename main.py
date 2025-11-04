@@ -14,11 +14,9 @@ intents = discord.Intents.default()
 intents.message_content = True
 client = discord.Client(intents=intents)
 
-# -----------------------------------------------------------------
-# CAMBIO CLAVE: Usamos CodeLlama, que es compatible con text-generation
-# -----------------------------------------------------------------
+# Cliente de Hugging Face
 hf_client = InferenceClient(
-    model="codellama/CodeLlama-7b-Instruct-hf", # ✅ Compatible con text-generation
+    model="codellama/CodeLlama-7b-Instruct-hf", 
     token=HF_API_TOKEN
 )
 
@@ -32,6 +30,20 @@ def home():
 def run_flask():
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+
+# --- Función Auxiliar Síncrona para evadir el error de asyncio ---
+def generar_respuesta_sincrona(prompt_text):
+    """Llama a la API de Hugging Face de forma síncrona."""
+    # Usamos 'stop' en lugar de 'stop_sequences' para eliminar la advertencia
+    respuesta_raw = hf_client.text_generation(
+        prompt=prompt_text,
+        max_new_tokens=250,
+        do_sample=True,
+        temperature=0.7,
+        stop=["</s>", "[INST]"],
+    )
+    return respuesta_raw.strip()
+
 
 # --- Eventos de Discord ---
 @client.event
@@ -54,36 +66,31 @@ async def on_message(message):
             await message.channel.send("⏳ Pensando con Hugging Face...")
 
             try:
-                # 1. Formateamos el prompt (usando el formato de CodeLlama/Llama2)
-                # Esto le da un contexto al modelo.
+                # 1. Formateamos el prompt
                 prompt_formateado = (
                     f"<s>[INST] Eres un asistente útil y amigable. Responde de forma concisa. "
                     f"Pregunta: {pregunta} [/INST]"
                 )
 
-                # 2. Usamos .text_generation()
-                respuesta_raw = await asyncio.to_thread(
-                    hf_client.text_generation,
-                    prompt=prompt_formateado,
-                    max_new_tokens=250,
-                    do_sample=True,
-                    temperature=0.7,
-                    stop_sequences=["</s>", "[INST]"], # Detenerse en el final de la respuesta
+                # 2. Llamamos a la función síncrona dentro de asyncio.to_thread
+                respuesta = await asyncio.to_thread(
+                    generar_respuesta_sincrona,
+                    prompt_formateado
                 )
                 
-                # 3. La respuesta es un string simple
-                respuesta = respuesta_raw.strip()
-
             except Exception as e:
+                # Si ocurre un error, lo registramos y respondemos
+                print(f"Error durante la generación de texto: {e}")
                 respuesta = f"Ocurrió un error al consultar la IA: {e}"
 
-            # Evita enviar mensajes vacíos
+            # Enviamos la respuesta
             await message.channel.send(respuesta or "No tengo respuesta.")
         else:
             await message.channel.send("¿Qué quieres preguntarme?")
 
 # --- Lanzar Flask y Discord ---
 if DISCORD_TOKEN:
+    # Nota: Tu bot ya está funcionando en un hilo, esta es la forma estándar de hacerlo.
     threading.Thread(target=run_flask).start()
     client.run(DISCORD_TOKEN)
 else:
