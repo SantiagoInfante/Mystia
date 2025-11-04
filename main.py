@@ -37,7 +37,14 @@ def call_cohere(prompt_text: str) -> str:
         completion = hf_client.chat.completions.create(
             model="CohereLabs/aya-expanse-32b",
             messages=[
-                {"role": "user", "content": prompt_text}
+                {
+                    "role": "system",
+                    "content": "Eres un asistente muy cariñoso, amable y breve. Responde siempre con pocas palabras, de manera cálida y positiva."
+                },
+                {
+                    "role": "user",
+                    "content": prompt_text
+                }
             ],
         )
         return completion.choices[0].message["content"].strip()
@@ -82,4 +89,3 @@ if DISCORD_TOKEN and HF_API_TOKEN:
     client.run(DISCORD_TOKEN)
 else:
     print("❌ ERROR: Faltan variables de entorno DISCORD_TOKEN o HF_API_TOKEN")
-
