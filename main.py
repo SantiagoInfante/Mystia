@@ -1,8 +1,7 @@
 import os
 import discord
 import asyncio
-# Importamos la función de conveniencia en lugar de la clase InferenceClient
-from huggingface_hub import InferenceClient, inference_call
+import requests # <-- ¡Nueva importación clave!
 from flask import Flask
 import threading
 
@@ -15,10 +14,9 @@ intents = discord.Intents.default()
 intents.message_content = True
 client = discord.Client(intents=intents)
 
-# Cliente de Hugging Face: Ya no lo necesitamos como objeto global
-# Lo pasaremos a la función de llamada
-# hf_client = InferenceClient(model="codellama/CodeLlama-7b-Instruct-hf", token=HF_API_TOKEN)
-
+# URL del endpoint de la API de Inferencia de Hugging Face
+# Usaremos un modelo compatible con text generation, como CodeLlama 7B Instruct
+HF_API_URL = "https://api-inference.huggingface.co/models/codellama/CodeLlama-7b-Instruct-hf"
 
 # --- Servidor Flask mínimo para Render ---
 app = Flask(__name__)
@@ -36,6 +34,42 @@ def run_flask():
 async def on_ready():
     print(f"✅ Bot conectado como {client.user}")
 
+# --- Función de llamada HTTP síncrona ---
+def call_hf_api_direct(prompt_text):
+    """
+    Realiza la llamada HTTP síncrona a la API de Hugging Face usando requests.
+    """
+    # 1. Cabeceras de autenticación
+    headers = {
+        "Authorization": f"Bearer {HF_API_TOKEN}",
+        "Content-Type": "application/json"
+    }
+
+    # 2. Datos de la solicitud (payload)
+    payload = {
+        "inputs": prompt_text,
+        "parameters": {
+            "max_new_tokens": 250,
+            "do_sample": True,
+            "temperature": 0.7,
+            "stop": ["</s>", "[INST]"],
+            "return_full_text": False # Pedimos solo el texto generado
+        }
+    }
+
+    # 3. Llamada síncrona
+    response = requests.post(HF_API_URL, headers=headers, json=payload)
+    response.raise_for_status() # Lanza una excepción para códigos de estado erróneos (4xx o 5xx)
+
+    # 4. Procesar la respuesta
+    data = response.json()
+    
+    # La respuesta es una lista de resultados, tomamos el primero
+    if data and isinstance(data, list) and 'generated_text' in data[0]:
+        return data[0]['generated_text'].strip()
+    
+    return "No se pudo obtener la respuesta de la IA."
+
 @client.event
 async def on_message(message):
     if message.author == client.user:
@@ -51,28 +85,6 @@ async def on_message(message):
         if pregunta:
             await message.channel.send("⏳ Pensando con Hugging Face...")
 
-            # Definimos la función de llamada síncrona
-            # Usamos la función 'inference_call' en lugar del método de la clase
-            def call_hf_api_function(prompt_text):
-                # Parámetros para la API de text-generation
-                params = {
-                    "max_new_tokens": 250,
-                    "do_sample": True,
-                    "temperature": 0.7,
-                    "stop": ["</s>", "[INST]"],
-                }
-                
-                # Intentamos la llamada usando la función de conveniencia
-                model_name = "codellama/CodeLlama-7b-Instruct-hf"
-                
-                # La función inference_call está diseñada para hacer una llamada HTTP síncrona
-                # y devolver una respuesta simple (no un generador).
-                return inference_call(
-                    model=model_name,
-                    data={"inputs": prompt_text, "parameters": params},
-                    token=HF_API_TOKEN,
-                )
-
             try:
                 # 1. Formateamos el prompt
                 prompt_formateado = (
@@ -81,18 +93,21 @@ async def on_message(message):
                 )
 
                 # 2. Ejecutamos la función síncrona en un hilo separado
-                #    usando el executor del loop de Discord.py.
-                respuesta_raw_obj = await client.loop.run_in_executor(
+                #    usando el executor del loop de Discord.py. Esto es lo que
+                #    resuelve el conflicto de concurrencia y el TypeError.
+                respuesta = await client.loop.run_in_executor(
                     None, 
-                    call_hf_api_function, 
+                    call_hf_api_direct, # Usamos la nueva función con requests
                     prompt_formateado
                 )
-
-                # 3. La respuesta de inference_call es un objeto Response.
-                respuesta = respuesta_raw_obj.generated_text.strip()
                 
+            except requests.exceptions.HTTPError as e:
+                # Manejo específico para errores HTTP
+                print(f"Error HTTP al consultar la IA: {e}")
+                respuesta = f"Ocurrió un error en la API de Hugging Face: {e}"
+            
             except Exception as e:
-                # Si ocurre un error, lo registramos y respondemos
+                # Otros errores (red, JSON, etc.)
                 print(f"Error durante la generación de texto: {e}")
                 respuesta = f"Ocurrió un error al consultar la IA: {e}"
 
