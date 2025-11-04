@@ -14,13 +14,11 @@ intents = discord.Intents.default()
 intents.message_content = True
 client = discord.Client(intents=intents)
 
-# Cliente de Hugging Face (modo text_generation)
 # -----------------------------------------------------------------
-# CAMBIO 1: Usamos un modelo compatible con text_generation (Mixtral)
+# CAMBIO CLAVE: Usamos CodeLlama, que es compatible con text-generation
 # -----------------------------------------------------------------
 hf_client = InferenceClient(
-    model="mistralai/Mixtral-8x7B-Instruct-v0.1", # Modelo más potente
-    # model="mistralai/Mistral-7B-Instruct-v0.1", # Alternativa más rápida
+    model="codellama/CodeLlama-7b-Instruct-hf", # ✅ Compatible con text-generation
     token=HF_API_TOKEN
 )
 
@@ -56,17 +54,11 @@ async def on_message(message):
             await message.channel.send("⏳ Pensando con Hugging Face...")
 
             try:
-                # ---------------------------------------------------------
-                # CAMBIO 2: Usamos text_generation y el formato de MISTRAL
-                # ---------------------------------------------------------
-
-                # 1. Formateamos el prompt para Mistral/Mixtral
-                #    Usa [INST] para las instrucciones/preguntas
-                #    y [/INST] para marcar el final de la instrucción.
+                # 1. Formateamos el prompt (usando el formato de CodeLlama/Llama2)
+                # Esto le da un contexto al modelo.
                 prompt_formateado = (
-                    f"[INST] Eres un asistente de Discord útil. "
-                    f"Responde la siguiente pregunta de forma concisa:\n"
-                    f"{pregunta} [/INST]"
+                    f"<s>[INST] Eres un asistente útil y amigable. Responde de forma concisa. "
+                    f"Pregunta: {pregunta} [/INST]"
                 )
 
                 # 2. Usamos .text_generation()
@@ -76,16 +68,11 @@ async def on_message(message):
                     max_new_tokens=250,
                     do_sample=True,
                     temperature=0.7,
-                    top_p=0.95,
-                    top_k=50,
-                    repetition_penalty=1.1,
-                    stop_sequences=["</s>", "[INST]"], # Detenerse antes de que intente preguntar de nuevo
+                    stop_sequences=["</s>", "[INST]"], # Detenerse en el final de la respuesta
                 )
                 
                 # 3. La respuesta es un string simple
                 respuesta = respuesta_raw.strip()
-                
-                # ---------------------------------------------------------
 
             except Exception as e:
                 respuesta = f"Ocurrió un error al consultar la IA: {e}"
