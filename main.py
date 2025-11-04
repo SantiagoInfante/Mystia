@@ -98,7 +98,7 @@ async def on_message(message):
 
             await message.channel.send(respuesta or "No tengo respuesta.")
         else:
-            await message.channel.send("¿Qué quieres preguntarme?")
+            await message.channel.send("¿Qué quieres preguntarme? 🥰")
 
 # --- Slash command /ping ---
 @bot.tree.command(name="ping", description="Muestra el ping del bot")
@@ -112,3 +112,4 @@ if DISCORD_TOKEN and HF_API_TOKEN:
     bot.run(DISCORD_TOKEN)
 else:
     print("❌ ERROR: Faltan variables de entorno DISCORD_TOKEN o HF_API_TOKEN")
+
