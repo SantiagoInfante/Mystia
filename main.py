@@ -15,9 +15,12 @@ intents.message_content = True
 client = discord.Client(intents=intents)
 
 # Cliente de Hugging Face (modo text_generation)
-# Asegúrate de que el modelo sea el correcto (zephyr)
+# -----------------------------------------------------------------
+# CAMBIO 1: Usamos un modelo compatible con text_generation (Mixtral)
+# -----------------------------------------------------------------
 hf_client = InferenceClient(
-    model="HuggingFaceH4/zephyr-7b-beta",  # Usamos este modelo
+    model="mistralai/Mixtral-8x7B-Instruct-v0.1", # Modelo más potente
+    # model="mistralai/Mistral-7B-Instruct-v0.1", # Alternativa más rápida
     token=HF_API_TOKEN
 )
 
@@ -53,36 +56,36 @@ async def on_message(message):
             await message.channel.send("⏳ Pensando con Hugging Face...")
 
             try:
-                # --- INICIO DE LA CORRECCIÓN ---
+                # ---------------------------------------------------------
+                # CAMBIO 2: Usamos text_generation y el formato de MISTRAL
+                # ---------------------------------------------------------
 
-                # 1. Formateamos el prompt para el modelo Zephyr
-                #    Este formato especial <|...|> le dice al modelo
-                #    quién está hablando (sistema, usuario, asistente).
+                # 1. Formateamos el prompt para Mistral/Mixtral
+                #    Usa [INST] para las instrucciones/preguntas
+                #    y [/INST] para marcar el final de la instrucción.
                 prompt_formateado = (
-                    f"<|system|>\nEres un asistente útil.</s>\n"
-                    f"<|user|>\n{pregunta}</s>\n"
-                    f"<|assistant|>"
+                    f"[INST] Eres un asistente de Discord útil. "
+                    f"Responde la siguiente pregunta de forma concisa:\n"
+                    f"{pregunta} [/INST]"
                 )
 
-                # 2. Usamos .text_generation() en lugar de .chat.completions.create()
-                #    Es un método más genérico y compatible con más modelos.
+                # 2. Usamos .text_generation()
                 respuesta_raw = await asyncio.to_thread(
                     hf_client.text_generation,
                     prompt=prompt_formateado,
-                    max_new_tokens=250,  # Usamos max_new_tokens
+                    max_new_tokens=250,
                     do_sample=True,
                     temperature=0.7,
                     top_p=0.95,
                     top_k=50,
                     repetition_penalty=1.1,
-                    stop_sequences=["</s>", "<|user|>"], # Importante: para que el bot no hable por el usuario
+                    stop_sequences=["</s>", "[INST]"], # Detenerse antes de que intente preguntar de nuevo
                 )
                 
-                # 3. La respuesta de .text_generation() es un string simple,
-                #    no un objeto complejo como antes.
+                # 3. La respuesta es un string simple
                 respuesta = respuesta_raw.strip()
-
-                # --- FIN DE LA CORRECCIÓN ---
+                
+                # ---------------------------------------------------------
 
             except Exception as e:
                 respuesta = f"Ocurrió un error al consultar la IA: {e}"
