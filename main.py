@@ -6,15 +6,12 @@ from huggingface_hub import InferenceClient
 from flask import Flask
 import threading
 
-# Tokens desde variables de entorno
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-HF_API_TOKEN = os.getenv("HF_API_TOKEN")  # Token de Hugging Face
+HF_API_TOKEN = os.getenv("HF_API_TOKEN") 
 
-# Configurar intents de Discord
 intents = discord.Intents.default()
 intents.message_content = True
 
-# Usamos commands.Bot para slash commands
 class MyBot(discord.Client):
     def __init__(self, *, intents: discord.Intents):
         super().__init__(intents=intents)
@@ -26,13 +23,11 @@ class MyBot(discord.Client):
 
 bot = MyBot(intents=intents)
 
-# Cliente de Hugging Face con Cohere como provider
 hf_client = InferenceClient(
     provider="cohere",
     api_key=HF_API_TOKEN,
 )
 
-# --- Servidor Flask mínimo para Render ---
 from flask import Flask
 app = Flask(__name__)
 
@@ -65,7 +60,6 @@ def call_cohere(prompt_text: str) -> str:
         print(f"❌ Error al consultar Cohere: {e}")
         return f"Ocurrió un error al consultar Cohere: {e}"
 
-# --- Eventos de Discord ---
 @bot.event
 async def on_ready():
     print(f"✅ Bot conectado como {bot.user}")
@@ -100,16 +94,15 @@ async def on_message(message):
         else:
             await message.channel.send("¿Qué quieres preguntarme? 🥰")
 
-# --- Slash command /ping ---
 @bot.tree.command(name="ping", description="Muestra el ping del bot")
 async def ping(interaction: discord.Interaction):
     latency = round(bot.latency * 1000)  # en ms
     await interaction.response.send_message(f"🏓 Pong! Latencia: {latency}ms")
 
-# --- Lanzar Flask y Discord ---
 if DISCORD_TOKEN and HF_API_TOKEN:
     threading.Thread(target=run_flask).start()
     bot.run(DISCORD_TOKEN)
 else:
     print("❌ ERROR: Faltan variables de entorno DISCORD_TOKEN o HF_API_TOKEN")
+
 
